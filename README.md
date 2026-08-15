@@ -10,13 +10,14 @@
 [油猴]()  
 [Github](https://github.com/Mr-Smilin/sword-art-defrag-helper)
 
-當前版本： 1.0.0  
-更新說明： 初版上傳
+當前版本： 1.1.0  
+更新說明： 修復初始化不載入的問題
 
 <details> <summary>版本紀錄</summary>  
   <br>  
   
 - 1.0.0： 初版上傳  
+- 1.1.0： 修復初始化不載入的問題  
   
 </details>
   

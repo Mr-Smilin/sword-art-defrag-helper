@@ -2,7 +2,7 @@
 // @name         Sword Art 經典服輔助工具
 // @description  行動記錄 / 循環行動順序 / 樓層獎勵覆蓋
 // @namespace    sword-art-defrag-helper
-// @version      1.0.0
+// @version      1.1.0
 // @license      MIT
 // @author       smilin
 // @match        https://betawtf.swordartdefrag.page
@@ -126,11 +126,25 @@
 		}
 		return null;
 	}
+	function waitForLeafByExactText(
+		text,
+		{ timeout = 5000, interval = 150 } = {},
+	) {
+		return new Promise((resolve) => {
+			const start = Date.now();
+			(function tryFind() {
+				const found = findLeafByExactText(text);
+				if (found) return resolve(found);
+				if (Date.now() - start >= timeout) return resolve(null);
+				setTimeout(tryFind, interval);
+			})();
+		});
+	}
 	function getActionHeading() {
-		return findLeafByExactText("行動");
+		return waitForLeafByExactText("行動");
 	}
 	function getRewardHeading() {
-		return findLeafByExactText("樓層獎勵");
+		return waitForLeafByExactText("樓層獎勵");
 	}
 
 	// ---------------- 行動記錄自動補上行動名稱 ----------------
