@@ -3,6 +3,7 @@
 // @description  行動記錄 / 循環行動順序 / 樓層獎勵覆蓋
 // @namespace    sword-art-defrag-helper
 // @version      1.0.0
+// @license      MIT
 // @author       smilin
 // @match        https://betawtf.swordartdefrag.page
 // @grant        none
