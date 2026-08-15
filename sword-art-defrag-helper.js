@@ -2,7 +2,7 @@
 // @name         Sword Art 經典服輔助工具
 // @description  行動記錄 / 循環行動順序 / 樓層獎勵覆蓋
 // @namespace    sword-art-defrag-helper
-// @version      1.1.1
+// @version      1.2.0
 // @license      MIT
 // @author       smilin
 // @match        https://betawtf.swordartdefrag.page
@@ -221,11 +221,26 @@
 	);
 
 	// ---------------- 行動順序 / 只顯示當前 ----------------
+	// 只剩一顆行動按鈕時，把它稍微放大一點，比較好點擊。
+	const ENLARGED_BUTTON_STYLE = {
+		minWidth: "200px",
+		minHeight: "60px",
+		fontSize: "22px",
+		padding: "16px 28px",
+	};
+	function clearEnlargedButton(btn) {
+		btn.style.minWidth = "";
+		btn.style.minHeight = "";
+		btn.style.fontSize = "";
+		btn.style.padding = "";
+	}
 	function applyOrderVisibility() {
 		const map = getActionButtonMap();
 		if (!state.orderMode) {
 			ACTION_NAMES.forEach((n) => {
-				if (map[n]) map[n].style.removeProperty("display");
+				if (!map[n]) return;
+				map[n].style.removeProperty("display");
+				clearEnlargedButton(map[n]);
 			});
 			return;
 		}
@@ -233,7 +248,14 @@
 		const current = step ? step.name : null;
 		ACTION_NAMES.forEach((n) => {
 			if (!map[n]) return;
-			map[n].style.display = n === current ? "" : "none";
+			const btn = map[n];
+			if (n === current) {
+				btn.style.display = "";
+				Object.assign(btn.style, ENLARGED_BUTTON_STYLE);
+			} else {
+				btn.style.display = "none";
+				clearEnlargedButton(btn);
+			}
 		});
 	}
 
@@ -270,6 +292,7 @@
 		overlayBtn.type = "button";
 		overlayBtn.textContent = "領取獎勵";
 		overlayBtn.setAttribute("data-sao-helper", "1");
+		// 這顆是「蓋在行動按鈕上」的樓層按鈕
 		Object.assign(overlayBtn.style, {
 			position: "absolute",
 			inset: "0",
@@ -325,22 +348,48 @@
 	// ==================================================================
 	// 把控制項直接嵌進遊戲畫面（不再用獨立的浮動面板）
 	// ==================================================================
-	function smallBtn(text, onClick) {
+	function isDarkMode() {
+		return document.documentElement.classList.contains("dark");
+	}
+	const NEUTRAL_PALETTE = {
+		light: {
+			panelBg: "#f3f4f6",
+			panelText: "#111827",
+			panelBorder: "#d1d5db",
+			mutedText: "#4b5563",
+		},
+		dark: {
+			panelBg: "#27272a",
+			panelText: "#f4f4f5",
+			panelBorder: "#3f3f46",
+			mutedText: "#a1a1aa",
+		},
+	};
+	function neutralPalette() {
+		return isDarkMode() ? NEUTRAL_PALETTE.dark : NEUTRAL_PALETTE.light;
+	}
+
+	function smallBtn(text, onClick, variant) {
 		const b = document.createElement("button");
 		b.type = "button";
 		b.textContent = text;
 		b.setAttribute("data-sao-helper", "1");
+		b.className =
+			variant === "danger"
+				? "bg-destructive text-destructive-foreground"
+				: "bg-secondary text-secondary-foreground";
 		Object.assign(b.style, {
-			background: "#e2e8f0",
-			color: "#1e293b",
-			border: "1px solid #cbd5e1",
+			borderWidth: "1px",
+			borderStyle: "solid",
 			borderRadius: "5px",
-			padding: "3px 8px",
+			padding: "4px 9px",
 			cursor: "pointer",
 			fontSize: "12px",
 		});
-		b.addEventListener("mouseenter", () => (b.style.background = "#cbd5e1"));
-		b.addEventListener("mouseleave", () => (b.style.background = "#e2e8f0"));
+		b.classList.add("border-border");
+		// 用 opacity 做 hover 回饋（不依賴網站是否剛好有編譯出 hover: 開頭的 class）
+		b.addEventListener("mouseenter", () => (b.style.opacity = "0.75"));
+		b.addEventListener("mouseleave", () => (b.style.opacity = "1"));
 		b.addEventListener("click", onClick);
 		return b;
 	}
@@ -348,6 +397,7 @@
 	function checkboxRow(labelText, checked, onChange) {
 		const row = document.createElement("label");
 		row.setAttribute("data-sao-helper", "1");
+		row.className = "text-foreground";
 		Object.assign(row.style, {
 			display: "inline-flex",
 			alignItems: "center",
@@ -358,6 +408,7 @@
 		const cb = document.createElement("input");
 		cb.type = "checkbox";
 		cb.checked = checked;
+		cb.className = "accent-primary";
 		cb.addEventListener("change", () => onChange(cb.checked));
 		const span = document.createElement("span");
 		span.textContent = labelText;
@@ -379,12 +430,12 @@
 			}
 			const wrap = document.createElement("div");
 			wrap.setAttribute("data-sao-helper", "1");
+			wrap.className = "text-foreground border-border";
 			Object.assign(wrap.style, {
 				marginTop: "10px",
 				paddingTop: "8px",
-				borderTop: "1px dashed #cbd5e1",
-				fontFamily:
-					'system-ui, -apple-system, "Segoe UI", "Microsoft JhengHei", sans-serif',
+				borderTopWidth: "1px",
+				borderTopStyle: "dashed",
 			});
 			const { row } = checkboxRow(
 				"可領取時，覆蓋在行動按鈕上（方便快速點擊）",
@@ -405,6 +456,20 @@
 	// ---- 行動框：加上循環行動順序編輯器 ----
 	let seqListEl = null;
 	let currentTurnEl = null;
+	let orderWrapEl = null;
+	let orderHintEl = null;
+
+	function paintOrderPanel() {
+		const p = neutralPalette();
+		if (orderWrapEl) {
+			orderWrapEl.style.backgroundColor = p.panelBg;
+			orderWrapEl.style.color = p.panelText;
+			orderWrapEl.style.borderColor = p.panelBorder;
+		}
+		if (orderHintEl) {
+			orderHintEl.style.color = p.mutedText;
+		}
+	}
 
 	async function mountOrderEditor() {
 		try {
@@ -417,11 +482,12 @@
 
 			const wrap = document.createElement("div");
 			wrap.setAttribute("data-sao-helper", "1");
+			orderWrapEl = wrap;
 			Object.assign(wrap.style, {
 				margin: "8px 0 10px 0",
 				padding: "8px 10px",
-				background: "#f8fafc",
-				border: "1px solid #e2e8f0",
+				borderWidth: "1px",
+				borderStyle: "solid",
 				borderRadius: "6px",
 				fontSize: "13px",
 			});
@@ -452,10 +518,10 @@
 			wrap.appendChild(titleRow);
 
 			currentTurnEl = document.createElement("div");
+			currentTurnEl.className = "text-primary";
 			Object.assign(currentTurnEl.style, {
 				margin: "6px 0",
 				fontSize: "12.5px",
-				color: "#16a34a",
 				fontWeight: "600",
 			});
 			wrap.appendChild(currentTurnEl);
@@ -476,30 +542,34 @@
 				marginTop: "8px",
 				flexWrap: "wrap",
 			});
-			btnRow.appendChild(smallBtn("+ 新增步驟", addSeqItem));
-			btnRow.appendChild(
-				smallBtn("重設進度", () => {
-					resetProgress();
-					save();
-					applyOrderVisibility();
-					renderOrderUI();
-				}),
-			);
-			btnRow.appendChild(
-				smallBtn("還原預設順序", () => {
-					state.sequence = defaultSequence();
-					resetProgress();
-					save();
-					applyOrderVisibility();
-					renderOrderUI();
-				}),
-			);
+			const addBtn = smallBtn("+ 新增步驟", addSeqItem);
+			const resetBtn = smallBtn("重設進度", () => {
+				resetProgress();
+				save();
+				applyOrderVisibility();
+				renderOrderUI();
+			});
+			const restoreBtn = smallBtn("還原預設順序", () => {
+				state.sequence = defaultSequence();
+				resetProgress();
+				save();
+				applyOrderVisibility();
+				renderOrderUI();
+			});
+			// 這三顆是主要操作按鈕，大一點方便點擊。
+			[addBtn, resetBtn, restoreBtn].forEach((b) => {
+				b.style.padding = "6px 14px";
+				b.style.fontSize = "13px";
+			});
+			btnRow.appendChild(addBtn);
+			btnRow.appendChild(resetBtn);
+			btnRow.appendChild(restoreBtn);
 			wrap.appendChild(btnRow);
 
 			const hint = document.createElement("div");
+			orderHintEl = hint;
 			Object.assign(hint.style, {
 				fontSize: "11px",
-				color: "#64748b",
 				marginTop: "6px",
 			});
 			hint.textContent =
@@ -509,7 +579,18 @@
 			// 插在「行動」標題之後、7 個行動按鈕之前
 			heading.insertAdjacentElement("afterend", wrap);
 
+			paintOrderPanel();
 			renderOrderUI();
+
+			// 網站切換深色/淺色模式時（<html class="dark"> 增減），重新上色。
+			const themeObserver = new MutationObserver(() => {
+				paintOrderPanel();
+				renderOrderUI();
+			});
+			themeObserver.observe(document.documentElement, {
+				attributes: true,
+				attributeFilter: ["class"],
+			});
 		} catch (err) {
 			console.warn("[SAO 輔助工具] 掛載行動順序編輯器失敗：", err);
 		}
@@ -530,28 +611,33 @@
 			const isCurrent = state.orderMode && idx === state.stepIndex;
 			const item = document.createElement("div");
 			item.setAttribute("data-sao-helper", "1");
+			// 當前這一步：用網站的主色（跟「修行」按鈕同一組綠色 token）實色填滿凸顯出來。
+			// 其餘步驟：跟卡片本身同色系，加一圈邊框做區隔。
+			item.className = isCurrent
+				? "bg-primary text-primary-foreground"
+				: "bg-card text-card-foreground border-border";
 			Object.assign(item.style, {
 				display: "flex",
 				alignItems: "center",
 				gap: "5px",
 				padding: "3px 6px",
 				borderRadius: "4px",
-				background: isCurrent ? "#dcfce7" : "#fff",
-				border: isCurrent ? "1px solid #4ade80" : "1px solid #e2e8f0",
+				borderWidth: isCurrent ? "0" : "1px",
+				borderStyle: "solid",
 				flexWrap: "wrap",
 			});
 
 			const idxLabel = document.createElement("span");
 			idxLabel.textContent = `${idx + 1}.`;
-			idxLabel.style.color = "#64748b";
+			if (!isCurrent) idxLabel.style.color = neutralPalette().mutedText;
 			item.appendChild(idxLabel);
 
 			const select = document.createElement("select");
 			select.setAttribute("data-sao-helper", "1");
+			select.className = "bg-background text-foreground border-input";
 			Object.assign(select.style, {
-				background: "#fff",
-				color: "#1e293b",
-				border: "1px solid #cbd5e1",
+				borderWidth: "1px",
+				borderStyle: "solid",
 				borderRadius: "4px",
 				fontSize: "12.5px",
 				padding: "2px 2px",
@@ -576,7 +662,7 @@
 
 			const countLabel = document.createElement("span");
 			countLabel.textContent = "x";
-			countLabel.style.color = "#64748b";
+			if (!isCurrent) countLabel.style.color = neutralPalette().mutedText;
 			item.appendChild(countLabel);
 
 			const countInput = document.createElement("input");
@@ -585,11 +671,11 @@
 			countInput.max = "99";
 			countInput.value = String(s.count);
 			countInput.setAttribute("data-sao-helper", "1");
+			countInput.className = "bg-background text-foreground border-input";
 			Object.assign(countInput.style, {
 				width: "46px",
-				background: "#fff",
-				color: "#1e293b",
-				border: "1px solid #cbd5e1",
+				borderWidth: "1px",
+				borderStyle: "solid",
 				borderRadius: "4px",
 				fontSize: "12.5px",
 				padding: "2px 4px",
@@ -613,7 +699,7 @@
 			btnGroup.style.gap = "2px";
 			const up = smallBtn("▲", () => moveSeqItem(idx, -1));
 			const down = smallBtn("▼", () => moveSeqItem(idx, 1));
-			const del = smallBtn("✕", () => removeSeqItem(idx));
+			const del = smallBtn("✕", () => removeSeqItem(idx), "danger");
 			up.style.padding = "1px 6px";
 			down.style.padding = "1px 6px";
 			del.style.padding = "1px 6px";
