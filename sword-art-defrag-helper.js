@@ -2,7 +2,7 @@
 // @name         Sword Art 經典服輔助工具
 // @description  行動記錄 / 循環行動順序 / 樓層獎勵覆蓋
 // @namespace    sword-art-defrag-helper
-// @version      1.1.0
+// @version      1.1.1
 // @license      MIT
 // @author       smilin
 // @match        https://betawtf.swordartdefrag.page
@@ -367,9 +367,9 @@
 	}
 
 	// ---- 樓層獎勵框：加上「領取獎勵覆蓋」開關 ----
-	function mountRewardToggle() {
+	async function mountRewardToggle() {
 		try {
-			const heading = getRewardHeading();
+			const heading = await getRewardHeading();
 			const container = heading ? heading.parentElement : null;
 			if (!container) {
 				console.warn(
@@ -406,9 +406,9 @@
 	let seqListEl = null;
 	let currentTurnEl = null;
 
-	function mountOrderEditor() {
+	async function mountOrderEditor() {
 		try {
-			const heading = getActionHeading();
+			const heading = await getActionHeading();
 			const buttonsRow = getActionButtonsRow();
 			if (!heading || !buttonsRow) {
 				console.warn("[SAO 輔助工具] 找不到「行動」框，行動順序功能未掛載。");
