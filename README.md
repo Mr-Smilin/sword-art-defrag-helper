@@ -7,7 +7,7 @@
 最後修改日期： 2026/08/15  
 作者： smilin （微笑）
 
-[油猴]()  
+[油猴](https://greasyfork.org/zh-TW/scripts/591435-sword-art-%E7%B6%93%E5%85%B8%E6%9C%8D%E8%BC%94%E5%8A%A9%E5%B7%A5%E5%85%B7)  
 [Github](https://github.com/Mr-Smilin/sword-art-defrag-helper)
 
 當前版本： 1.1.0  
