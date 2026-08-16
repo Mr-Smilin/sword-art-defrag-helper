@@ -2,7 +2,7 @@
 // @name         Sword Art 經典服輔助工具
 // @description  行動記錄 / 循環行動順序 / 樓層獎勵覆蓋
 // @namespace    sword-art-defrag-helper
-// @version      1.3.0
+// @version      1.3.1
 // @license      MIT
 // @author       smilin
 // @match        https://betawtf.swordartdefrag.page
@@ -151,39 +151,36 @@
 
 	// ---------------- 行動記錄自動補上行動名稱 ----------------
 	// 遊戲原本的「行動記錄」只會顯示「行動成功！獲得了 xx 點經驗值。」，沒有講是哪個行動。
-	// 這裡用一個先進先出佇列記住「最近點了哪些行動」，一偵測到記錄區多了一筆新紀錄，
-	// 就把最前面還沒被消耗的行動名稱接上去，變成「自主訓練成功！獲得了 xx 點經驗值。」
+	// 這裡用一個先進先出佇列記住「最近點了哪些行動」。判斷邏輯很單純：
+	// 只偵測訊息開頭兩個字是不是「行動」，是的話就換成佇列最前面的行動名稱，
+	// 不是的話完全不處理、不動它（包含後面所有文字，不管有沒有額外訊息）。
+	// 換完名字之後開頭就不再是「行動」了，所以不需要另外標記「已經處理過」，
+	// 就算遊戲的紀錄清單重複使用/更新同一個 DOM 節點，這個判斷方式也不會誤判或卡住。
 	const pendingActions = [];
 
-	// 只找出真正裝著開頭「行動」兩個字的那個文字節點，只改寫最前面兩個字，
-	// 其餘文字節點（可能是額外訊息，例如加成、稱號效果等）完全不動，避免被吃掉。
-	function findLeadingActionTextNode(root) {
+	// 找出節點裡「文件順序上第一個非空白文字節點」，只有它開頭是「行動」才處理。
+	function findLeadingTextNode(root) {
 		const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
 		let n;
 		while ((n = walker.nextNode())) {
-			if (n.nodeValue && n.nodeValue.trimStart().startsWith("行動")) {
-				return n;
-			}
-			if (n.nodeValue && n.nodeValue.trim() !== "") {
-				// 遇到第一個非空白文字節點卻不是以「行動」開頭，代表這筆紀錄不是我們要標註的格式
-				return null;
-			}
+			if (n.nodeValue && n.nodeValue.trim() !== "") return n;
 		}
 		return null;
 	}
 
 	function tryAnnotateRecordNode(node) {
 		if (!node || node.nodeType !== 1) return;
-		if (node.dataset && node.dataset.saoAnnotated === "1") return;
-		const textNode = findLeadingActionTextNode(node);
+		const textNode = findLeadingTextNode(node);
 		if (!textNode) return;
-		const name = pendingActions.shift();
-		if (!name) return; // 沒有對應得上的行動（例如頁面載入前就有的舊紀錄），保留原樣
-		if (node.dataset) node.dataset.saoAnnotated = "1";
 		const raw = textNode.nodeValue;
-		const idx = raw.indexOf("行動");
+		const trimmed = raw.trimStart();
+		if (!trimmed.startsWith("行動")) return; // 開頭不是「行動」，不處理
+		const name = pendingActions[0];
+		if (!name) return; // 沒有排隊中的行動名稱可用，先保留原樣，等下一次掃描再試
+		const idx = raw.length - trimmed.length; // 前面空白字元數，也就是「行動」開始的位置
 		textNode.nodeValue =
 			raw.slice(0, idx) + name + raw.slice(idx + "行動".length);
+		pendingActions.shift();
 	}
 
 	function scanForRecordNodes(root) {
@@ -195,6 +192,13 @@
 		if (root.querySelectorAll) {
 			root.querySelectorAll("article").forEach(tryAnnotateRecordNode);
 		}
+	}
+
+	// 保險用：定期重新掃過目前畫面上所有紀錄節點一次。
+	// 有些情況（例如清單元件重複使用既有 DOM 節點、只更新文字）不會觸發
+	// MutationObserver 的 childList 事件，光靠監聽新增節點會漏掉，所以額外加這一道。
+	function rescanAllRecords() {
+		document.querySelectorAll("article").forEach(tryAnnotateRecordNode);
 	}
 
 	const recordObserver = new MutationObserver((mutations) => {
@@ -236,7 +240,7 @@
 	);
 
 	// ---------------- 行動順序 / 只顯示當前 ----------------
-	// 只剩一顆行動按鈕時，把它稍微放大一點，比較好點擊。
+	// 只剩一顆行動按鈕時，把它稍微放大一點，比較好點擊（不是縮小成一小格）。
 	const ENLARGED_BUTTON_STYLE = {
 		minWidth: "200px",
 		minHeight: "60px",
@@ -307,7 +311,8 @@
 		overlayBtn.type = "button";
 		overlayBtn.textContent = "領取獎勵";
 		overlayBtn.setAttribute("data-sao-helper", "1");
-		// 這顆是「蓋在行動按鈕上」的樓層按紐。
+		// 這顆是「蓋在行動按鈕上」的強調用按鈕，本來就要跟底下按鈕明顯不同、
+		// 不管深色淺色都要一眼看到，所以維持固定的綠色實色，不跟著主題切換。
 		Object.assign(overlayBtn.style, {
 			position: "absolute",
 			inset: "0",
@@ -357,6 +362,7 @@
 	function reconcile() {
 		applyOrderVisibility();
 		applyRewardOverlay();
+		rescanAllRecords();
 	}
 	setInterval(reconcile, 1000);
 

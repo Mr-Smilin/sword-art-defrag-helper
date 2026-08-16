@@ -10,7 +10,7 @@
 [油猴](https://greasyfork.org/zh-TW/scripts/591435-sword-art-%E7%B6%93%E5%85%B8%E6%9C%8D%E8%BC%94%E5%8A%A9%E5%B7%A5%E5%85%B7)  
 [Github](https://github.com/Mr-Smilin/sword-art-defrag-helper)
 
-當前版本： 1.3.0
+當前版本： 1.3.1
 更新說明： 修復戰鬥紀錄會把多餘資訊吃掉的問題
 
 <details> <summary>版本紀錄</summary>  
