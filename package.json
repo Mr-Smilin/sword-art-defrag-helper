@@ -1,0 +1,20 @@
+{
+	"name": "sword-art-defrag-helper",
+	"version": "1.4.0",
+	"description": "Sword Art 經典服輔助工具 - 行動記錄 / 循環行動順序 / 樓層獎勵覆蓋",
+	"private": true,
+	"type": "module",
+	"license": "MIT",
+	"author": "smilin",
+	"scripts": {
+		"build": "node build.mjs",
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"prepare-release": "npm test && npm run build"
+	},
+	"devDependencies": {
+		"esbuild": "^0.25.0",
+		"jsdom": "^26.0.0",
+		"vitest": "^3.0.0"
+	}
+}

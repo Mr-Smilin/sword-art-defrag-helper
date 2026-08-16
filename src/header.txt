@@ -1,0 +1,10 @@
+// ==UserScript==
+// @name         Sword Art 經典服輔助工具
+// @description  行動記錄 / 循環行動順序 / 樓層獎勵覆蓋
+// @namespace    sword-art-defrag-helper
+// @version      {{VERSION}}
+// @license      MIT
+// @author       smilin
+// @match        https://betawtf.swordartdefrag.page
+// @grant        none
+// ==/UserScript==
