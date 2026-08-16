@@ -2,7 +2,7 @@
 // @name         Sword Art 經典服輔助工具
 // @description  行動記錄 / 循環行動順序 / 樓層獎勵覆蓋
 // @namespace    sword-art-defrag-helper
-// @version      1.2.0
+// @version      1.3.0
 // @license      MIT
 // @author       smilin
 // @match        https://betawtf.swordartdefrag.page
@@ -126,6 +126,8 @@
 		}
 		return null;
 	}
+	// 剛載入網頁時，遊戲畫面可能還沒渲染出來，直接查會查不到。
+	// 這裡改成輪詢：每 150ms 查一次，最多等 5 秒，找到就馬上回傳，逾時回傳 null。
 	function waitForLeafByExactText(
 		text,
 		{ timeout = 5000, interval = 150 } = {},
@@ -153,22 +155,35 @@
 	// 就把最前面還沒被消耗的行動名稱接上去，變成「自主訓練成功！獲得了 xx 點經驗值。」
 	const pendingActions = [];
 
+	// 只找出真正裝著開頭「行動」兩個字的那個文字節點，只改寫最前面兩個字，
+	// 其餘文字節點（可能是額外訊息，例如加成、稱號效果等）完全不動，避免被吃掉。
+	function findLeadingActionTextNode(root) {
+		const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+		let n;
+		while ((n = walker.nextNode())) {
+			if (n.nodeValue && n.nodeValue.trimStart().startsWith("行動")) {
+				return n;
+			}
+			if (n.nodeValue && n.nodeValue.trim() !== "") {
+				// 遇到第一個非空白文字節點卻不是以「行動」開頭，代表這筆紀錄不是我們要標註的格式
+				return null;
+			}
+		}
+		return null;
+	}
+
 	function tryAnnotateRecordNode(node) {
 		if (!node || node.nodeType !== 1) return;
 		if (node.dataset && node.dataset.saoAnnotated === "1") return;
-		const text = node.textContent;
-		if (typeof text !== "string" || !text.startsWith("行動")) return;
+		const textNode = findLeadingActionTextNode(node);
+		if (!textNode) return;
 		const name = pendingActions.shift();
 		if (!name) return; // 沒有對應得上的行動（例如頁面載入前就有的舊紀錄），保留原樣
 		if (node.dataset) node.dataset.saoAnnotated = "1";
-		const newText = name + text.slice("行動".length);
-		// 優先找內層真正裝文字的元素改寫，找不到才整個節點的 textContent 一起覆蓋
-		const inner = node.querySelector ? node.querySelector("*") : null;
-		if (inner && inner.textContent === text && inner.children.length === 0) {
-			inner.textContent = newText;
-		} else {
-			node.textContent = newText;
-		}
+		const raw = textNode.nodeValue;
+		const idx = raw.indexOf("行動");
+		textNode.nodeValue =
+			raw.slice(0, idx) + name + raw.slice(idx + "行動".length);
 	}
 
 	function scanForRecordNodes(root) {
@@ -292,7 +307,7 @@
 		overlayBtn.type = "button";
 		overlayBtn.textContent = "領取獎勵";
 		overlayBtn.setAttribute("data-sao-helper", "1");
-		// 這顆是「蓋在行動按鈕上」的樓層按鈕
+		// 這顆是「蓋在行動按鈕上」的樓層按紐。
 		Object.assign(overlayBtn.style, {
 			position: "absolute",
 			inset: "0",
@@ -347,6 +362,19 @@
 
 	// ==================================================================
 	// 把控制項直接嵌進遊戲畫面（不再用獨立的浮動面板）
+	//
+	// 顏色不再自己寫死 hex 色碼，改用網站本身既有的 Tailwind / shadcn 語意色
+	// class（例如 bg-card、text-foreground、bg-primary...），這些 class 背後
+	// 綁的是 CSS 變數，網站切換深色/淺色模式（<html class="dark">）時會自動
+	// 連動改變，不需要我們自己判斷目前是什麼主題。
+	// 這些 class 名稱是先在頁面上實際建立測試元素、用 getComputedStyle 確認
+	// 網站的編譯後 CSS 裡真的有對應樣式才選用的（避免用到網站沒編譯出來、
+	// 掛了也不會生效的 class，例如 opacity-80、hover:bg-secondary 這種）。
+	//
+	// 例外：網站自己的 bg-muted / bg-secondary 這兩個 token 實測起來偏藍
+	// （oklch 色相 ~243，淺色模式下看起來像淺藍而不是中性灰），行動順序面板
+	// 這塊我們自己想要的是「乾淨的淺灰／深灰」，所以改成手動指定中性灰階色碼，
+	// 並且監聽 <html class="dark"> 的變化，主題切換時自己重新上色。
 	// ==================================================================
 	function isDarkMode() {
 		return document.documentElement.classList.contains("dark");
@@ -556,7 +584,7 @@
 				applyOrderVisibility();
 				renderOrderUI();
 			});
-			// 這三顆是主要操作按鈕，大一點方便點擊。
+			// 這三顆是主要操作按鈕，比步驟列裡的 ▲▼✕ 小按鈕再大一點，方便點擊。
 			[addBtn, resetBtn, restoreBtn].forEach((b) => {
 				b.style.padding = "6px 14px";
 				b.style.fontSize = "13px";
