@@ -2,7 +2,7 @@
 // @name         Sword Art 經典服輔助工具
 // @description  行動記錄 / 循環行動順序 / 樓層獎勵覆蓋
 // @namespace    sword-art-defrag-helper
-// @version      1.3.1
+// @version      1.3.2
 // @license      MIT
 // @author       smilin
 // @match        https://betawtf.swordartdefrag.page
@@ -151,14 +151,34 @@
 
 	// ---------------- 行動記錄自動補上行動名稱 ----------------
 	// 遊戲原本的「行動記錄」只會顯示「行動成功！獲得了 xx 點經驗值。」，沒有講是哪個行動。
-	// 這裡用一個先進先出佇列記住「最近點了哪些行動」。判斷邏輯很單純：
-	// 只偵測訊息開頭兩個字是不是「行動」，是的話就換成佇列最前面的行動名稱，
-	// 不是的話完全不處理、不動它（包含後面所有文字，不管有沒有額外訊息）。
-	// 換完名字之後開頭就不再是「行動」了，所以不需要另外標記「已經處理過」，
-	// 就算遊戲的紀錄清單重複使用/更新同一個 DOM 節點，這個判斷方式也不會誤判或卡住。
-	const pendingActions = [];
+	//
+	// ★ 這一段被改寫過好幾次，因為遊戲的紀錄清單有兩個很容易踩雷的特性
+	//   （下面兩點是實際在頁面上量測出來的，不是猜的）：
+	//
+	//   1. 清單是「最新的在最上面」，但 React 是用「位置」在對應節點，不是用內容。
+	//      新增一筆紀錄時，它並不會在最上面插入一個新的 <article>，
+	//      而是把「既有每個節點的文字」整批往下挪一格重寫，然後在「最後面」補一個新節點。
+	//      => 最新的那筆紀錄是「改既有節點的文字」，不會觸發 childList 的新增節點事件；
+	//         真正被新增的那個節點反而裝的是「最舊」的那筆內容。
+	//         所以只監聽 addedNodes 永遠抓不到最新那筆，而且會標錯到最舊那筆上。
+	//
+	//   2. 每次重繪，React 都會用它自己資料裡的原始文字覆蓋回去，
+	//      也就是我們改過的字會被整個蓋掉、變回「行動成功！...」。
+	//      => 標註不能只做一次，必須在每次重繪後持續重新套用。
+	//
+	//   （這也是為什麼之前用 data-sao-annotated 標記「處理過了」會壞掉：
+	//     節點會被重複使用，標記黏在節點上，內容換成新紀錄後就被永久跳過，
+	//     於是「某一筆之後全部都不再替換」。）
+	//
+	// 所以改成：自己維護一份「第幾筆紀錄 = 哪個行動」的對照表（labels，索引 0 是最新一筆），
+	// 有新紀錄進來就整個往下推一格，然後每次重繪後都依照這份對照表把名字重新補回去。
+	// 實際改寫時一樣只動開頭「行動」兩個字，後面文字（含升級能力變化那種多行額外訊息）完全不碰。
+	const pendingActions = []; // 點過但還沒對應到紀錄的行動名稱（先進先出）
+	let labels = []; // labels[i] = 第 i 筆紀錄（0 = 最新）對應的行動名稱，沒有就是 null
+	let lastCount = 0; // 上次看到的紀錄筆數
+	let lastTopRaw = null; // 上次看到的「最新一筆」的原始文字（還沒被我們改過的）
 
-	// 找出節點裡「文件順序上第一個非空白文字節點」，只有它開頭是「行動」才處理。
+	// 找出節點裡「文件順序上第一個非空白文字節點」，也就是真正裝訊息的那個文字節點
 	function findLeadingTextNode(root) {
 		const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
 		let n;
@@ -168,45 +188,71 @@
 		return null;
 	}
 
-	function tryAnnotateRecordNode(node) {
-		if (!node || node.nodeType !== 1) return;
-		const textNode = findLeadingTextNode(node);
-		if (!textNode) return;
-		const raw = textNode.nodeValue;
-		const trimmed = raw.trimStart();
-		if (!trimmed.startsWith("行動")) return; // 開頭不是「行動」，不處理
-		const name = pendingActions[0];
-		if (!name) return; // 沒有排隊中的行動名稱可用，先保留原樣，等下一次掃描再試
-		const idx = raw.length - trimmed.length; // 前面空白字元數，也就是「行動」開始的位置
-		textNode.nodeValue =
-			raw.slice(0, idx) + name + raw.slice(idx + "行動".length);
-		pendingActions.shift();
+	function getRecordArticles() {
+		return Array.from(document.querySelectorAll("article"));
 	}
 
-	function scanForRecordNodes(root) {
-		if (!root || root.nodeType !== 1) return;
-		if (root.tagName === "ARTICLE") {
-			tryAnnotateRecordNode(root);
+	function scanRecords() {
+		const arts = getRecordArticles();
+		const n = arts.length;
+		if (!n) {
+			lastCount = 0;
+			lastTopRaw = null;
 			return;
 		}
-		if (root.querySelectorAll) {
-			root.querySelectorAll("article").forEach(tryAnnotateRecordNode);
+
+		const topNode = findLeadingTextNode(arts[0]);
+		const topText = topNode ? topNode.nodeValue : "";
+		// 開頭還是「行動」＝這是遊戲剛寫上去的原始文字（我們還沒補名字，或剛被重繪蓋回去）
+		const topIsRaw = topText.trimStart().startsWith("行動");
+
+		// --- 判斷有沒有新紀錄進來 ---
+		let newCount = 0;
+		if (n > lastCount) {
+			// 一般情況：清單還沒滿，筆數變多了
+			newCount = n - lastCount;
+		} else if (topIsRaw && lastTopRaw !== null && topText !== lastTopRaw) {
+			// 清單已達上限、筆數不再變多，但最新一筆的內容換了 → 也是新的一筆
+			newCount = 1;
 		}
+
+		for (let k = 0; k < newCount; k++) {
+			// 有排隊中的行動就用它，沒有就補 null（例如頁面載入前就存在的舊紀錄）
+			labels.unshift(pendingActions.length ? pendingActions.shift() : null);
+		}
+		labels.length = n; // 跟目前筆數對齊（清單捲掉的舊紀錄就一起丟掉）
+
+		// --- 依照對照表把名字補回去 ---
+		// React 每次重繪都會把我們改的字蓋回原文，所以這裡每次都要重新套用一遍。
+		// 已經是我們改過的（開頭不是「行動」）就會自動跳過，重複執行不會有副作用。
+		arts.forEach((a, i) => {
+			const name = labels[i];
+			if (!name) return;
+			const tn = findLeadingTextNode(a);
+			if (!tn) return;
+			const raw = tn.nodeValue;
+			const trimmed = raw.trimStart();
+			if (!trimmed.startsWith("行動")) return; // 開頭不是「行動」→ 不處理
+			const lead = raw.length - trimmed.length; // 開頭空白數，也就是「行動」的起始位置
+			tn.nodeValue =
+				raw.slice(0, lead) + name + raw.slice(lead + "行動".length);
+		});
+
+		lastCount = n;
+		if (topIsRaw) lastTopRaw = topText; // 只記錄「原始文字」，別把自己改過的字記進去
 	}
 
-	// 保險用：定期重新掃過目前畫面上所有紀錄節點一次。
-	// 有些情況（例如清單元件重複使用既有 DOM 節點、只更新文字）不會觸發
-	// MutationObserver 的 childList 事件，光靠監聽新增節點會漏掉，所以額外加這一道。
-	function rescanAllRecords() {
-		document.querySelectorAll("article").forEach(tryAnnotateRecordNode);
-	}
-
-	const recordObserver = new MutationObserver((mutations) => {
-		for (const m of mutations) {
-			m.addedNodes.forEach(scanForRecordNodes);
-		}
+	// characterData 也要監聽：最新一筆是用「改既有節點的文字」的方式更新的，
+	// 只聽 childList 會完全漏掉它。scanRecords 本身是冪等的（重複跑不會有副作用、
+	// 也不會再產生新的變動），所以被自己的修改再觸發一次也會自然收斂，不會無限迴圈。
+	const recordObserver = new MutationObserver(() => {
+		scanRecords();
 	});
-	recordObserver.observe(document.body, { childList: true, subtree: true });
+	recordObserver.observe(document.body, {
+		childList: true,
+		subtree: true,
+		characterData: true,
+	});
 
 	// 用事件代理監聽整個 document（capture），遊戲重新渲染按鈕節點也抓得到
 	document.addEventListener(
@@ -362,7 +408,7 @@
 	function reconcile() {
 		applyOrderVisibility();
 		applyRewardOverlay();
-		rescanAllRecords();
+		scanRecords();
 	}
 	setInterval(reconcile, 1000);
 
@@ -750,6 +796,9 @@
 	}
 
 	// ---------------- 初始化 ----------------
+	// 先掃一次，把「腳本載入前就已經存在的舊紀錄」登記起來（此時 pendingActions 是空的，
+	// 所以它們的對照名稱都會是 null），之後就不會去動到這些沒辦法對應行動的舊紀錄。
+	scanRecords();
 	mountRewardToggle();
 	mountOrderEditor();
 	applyOrderVisibility();
