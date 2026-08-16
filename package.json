@@ -1,7 +1,7 @@
 {
 	"name": "sword-art-defrag-helper",
-	"version": "1.4.0",
-	"description": "Sword Art 經典服輔助工具 - 行動記錄 / 循環行動順序 / 樓層獎勵覆蓋",
+	"version": "1.5.0",
+	"description": "Sword Art 經典服輔助工具 - 行動記錄 / 循環行動順序 / 樓層獎勵覆蓋 / 挑戰安全模式",
 	"private": true,
 	"type": "module",
 	"license": "MIT",

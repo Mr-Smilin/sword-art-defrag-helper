@@ -3,17 +3,17 @@
 // 單一模組的測試各自都會過，但真正會出事的是模組之間的接縫，所以這裡把整條鏈接起來跑。
 
 import { beforeEach, describe, expect, it } from "vitest";
-import { resetActionIdMap } from "../src/action-api.js";
+import { resetActionIdMap } from "../src/game/action-api.js";
 import {
 	installActionTracker,
 	resetActionTracker,
-} from "../src/action-tracker.js";
-import { STATE_CHANGED, on, resetBus } from "../src/bus.js";
-import { ACTION_NAMES } from "../src/constants.js";
-import { installNetworkHooks, resetNetworkHooks } from "../src/network.js";
-import { applyOrderVisibility } from "../src/order.js";
-import { getLabels, resetRecords, scanRecords } from "../src/records.js";
-import { reloadState, state } from "../src/state.js";
+} from "../src/game/action-tracker.js";
+import { STATE_CHANGED, on, resetBus } from "../src/core/bus.js";
+import { ACTION_NAMES } from "../src/core/constants.js";
+import { installNetworkHooks, resetNetworkHooks } from "../src/game/network.js";
+import { applyOrderVisibility } from "../src/features/order.js";
+import { getLabels, resetRecords, scanRecords } from "../src/features/records.js";
+import { reloadState, state } from "../src/core/state.js";
 import { createRecordList, rawRecord } from "./helpers/record-list.js";
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
@@ -209,16 +209,48 @@ describe("整合 - 行動 -> API -> 紀錄標註 / 順序推進", () => {
 
 		// 重建一次（模擬重新整理頁面），對照表要還在
 		resetActionIdMap();
-		const { actionNameFromId } = await import("../src/action-api.js");
+		const { actionNameFromId } = await import("../src/game/action-api.js");
 		expect(actionNameFromId("good_deed")).toBe("做善事");
 	});
 
 	it("腳本載入前的舊紀錄不會被亂標，之後的新紀錄照樣正確", async () => {
 		game = createGame({ cap: 5 });
 		game.seed(2);
-		expect(getLabels()).toEqual([null, null]);
+		// 對照表只記錄「我們親眼看到成功的行動」，載入前就存在的舊紀錄不會進來
+		expect(getLabels()).toEqual([]);
+		expect(game.list.visibleTexts().every((t) => t.startsWith("行動"))).toBe(
+			true,
+		);
 
 		await game.act("坐下休息", { exp: 7 });
-		expect(getLabels()).toEqual(["坐下休息", null, null]);
+		expect(getLabels()).toEqual(["坐下休息"]);
+		expect(game.list.visibleTexts()[0]).toBe("坐下休息成功！獲得了 7 點經驗值。");
+		// 舊紀錄仍然維持原樣
+		expect(game.list.visibleTexts()[1]).toBe("行動成功！獲得了 2 點經驗值。");
+	});
+
+	// ★ 使用者實測回報的完整情境：循環順序「狩獵兔肉 x2 -> 外出野餐 x1」，
+	// 三次行動的經驗值都一樣。走完整條鏈（點按鈕 -> API -> 標註）驗證。
+	it("循環順序換行動、且每次經驗值都相同時，行動紀錄標註正確", async () => {
+		state.orderMode = true;
+		state.sequence = [
+			{ name: "狩獵兔肉", count: 2 },
+			{ name: "外出野餐", count: 1 },
+		];
+		state.stepIndex = 0;
+		state.stepProgress = 0;
+
+		await game.act("狩獵兔肉", { exp: 5 });
+		await game.act("狩獵兔肉", { exp: 5 });
+		expect(state.stepIndex).toBe(1); // 換到外出野餐這一步
+
+		await game.act("外出野餐", { exp: 5 });
+
+		expect(game.list.visibleTexts()).toEqual([
+			"外出野餐成功！獲得了 5 點經驗值。",
+			"狩獵兔肉成功！獲得了 5 點經驗值。",
+			"狩獵兔肉成功！獲得了 5 點經驗值。",
+		]);
+		expect(state.stepIndex).toBe(0); // 跑完一輪，回到第一步
 	});
 });

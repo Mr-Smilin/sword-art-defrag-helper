@@ -1,8 +1,8 @@
 // 樓層獎勵可領取時，蓋一顆大按鈕在行動按鈕列上，方便直接點。
 
-import { STATE_CHANGED, emit } from "./bus.js";
-import { getActionButtonsRow, getRewardButton } from "./dom.js";
-import { save, state } from "./state.js";
+import { STATE_CHANGED, emit } from "../core/bus.js";
+import { getActionButtonsRow, getRewardButton } from "../game/dom.js";
+import { save, state } from "../core/state.js";
 
 let overlayBtn = null;
 

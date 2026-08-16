@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ACTION_RESULT, on, resetBus } from "../src/bus.js";
-import { installNetworkHooks, resetNetworkHooks } from "../src/network.js";
+import { ACTION_RESULT, on, resetBus } from "../../src/core/bus.js";
+import { installNetworkHooks, resetNetworkHooks } from "../../src/game/network.js";
 
 const SUCCESS_BODY = JSON.stringify({
 	expGained: 15,

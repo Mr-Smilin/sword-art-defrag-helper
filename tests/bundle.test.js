@@ -7,6 +7,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import * as challengeHelpers from "./helpers/challenge-card.js";
 
 const ROOT = path.resolve(__dirname, "..");
 const BUNDLE_PATH = path.join(ROOT, "sword-art-defrag-helper.js");
@@ -28,10 +29,14 @@ describe("bundle - UserScript metadata", () => {
 		expect(version).toBe(pkg.version);
 	});
 
-	it("@match 維持原本的設定", () => {
-		expect(/@match\s+(\S+)/.exec(bundle)?.[1]).toBe(
-			"https://betawtf.swordartdefrag.page",
+	it("@match 同時涵蓋首頁與 /profile/ 頁面", () => {
+		const matches = Array.from(bundle.matchAll(/@match\s+(\S+)/g)).map(
+			(m) => m[1],
 		);
+		expect(matches).toEqual([
+			"https://betawtf.swordartdefrag.page",
+			"https://betawtf.swordartdefrag.page/profile/*",
+		]);
 	});
 
 	it("沒有殘留 ESM 的 import / export 語法", () => {
@@ -163,6 +168,20 @@ describe("bundle - 實際執行", () => {
 		expect(document.querySelector("article").textContent.trim()).toBe(
 			"釣魚成功！獲得了 11 點經驗值。",
 		);
+	});
+
+	it("挑戰安全模式預設生效，只留下友好切磋", () => {
+		const { renderChallengeCard, visibleChallengeNames } = challengeHelpers;
+		renderChallengeCard(document.body);
+
+		runBundle();
+
+		expect(visibleChallengeNames()).toEqual(["友好切磋"]);
+		// 標題旁邊要掛上開關，而且是勾選狀態
+		const header = document.querySelector('[data-slot="card-header"]');
+		const toggle = header.querySelector("[data-sao-helper]");
+		expect(toggle).not.toBeNull();
+		expect(toggle.querySelector("input").checked).toBe(true);
 	});
 
 	it("失敗的行動不會被標註", async () => {

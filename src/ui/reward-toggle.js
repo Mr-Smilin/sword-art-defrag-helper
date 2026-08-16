@@ -1,8 +1,8 @@
 // 在「樓層獎勵」框裡掛上「領取獎勵覆蓋」開關。
 
-import { getRewardHeading } from "../dom.js";
-import { setRewardOverlay } from "../reward.js";
-import { state } from "../state.js";
+import { getRewardHeading } from "../game/dom.js";
+import { setRewardOverlay } from "../features/reward.js";
+import { state } from "../core/state.js";
 import { checkboxRow } from "./components.js";
 
 export async function mountRewardToggle() {

@@ -1,7 +1,7 @@
 // 在「行動」框裡（標題之後、七顆行動按鈕之前）掛上循環行動順序編輯器。
 
-import { ACTION_NAMES } from "../constants.js";
-import { getActionButtonsRow, getActionHeading } from "../dom.js";
+import { ACTION_NAMES } from "../core/constants.js";
+import { getActionButtonsRow, getActionHeading } from "../game/dom.js";
 import {
 	addSeqItem,
 	moveSeqItem,
@@ -11,9 +11,9 @@ import {
 	setOrderMode,
 	setSeqItemCount,
 	setSeqItemName,
-} from "../order.js";
-import { currentStep, state } from "../state.js";
-import { neutralPalette, observeTheme } from "../theme.js";
+} from "../features/order.js";
+import { currentStep, state } from "../core/state.js";
+import { neutralPalette, observeTheme } from "./theme.js";
 import { checkboxRow, smallBtn } from "./components.js";
 
 let seqListEl = null;

@@ -3,7 +3,12 @@
 // 這裡全部是「用文字內容找節點」而不是用 class/id，因為網站是 React + Tailwind，
 // class 名稱是編譯產生的、每次改版都可能變，但畫面上的中文字相對穩定得多。
 
-import { ACTION_NAMES, REWARD_NAME } from "./constants.js";
+import {
+	ACTION_NAMES,
+	CHALLENGE_HEADING,
+	CHALLENGE_MODES,
+	REWARD_NAME,
+} from "../core/constants.js";
 
 // 一律排除我們自己加的控制項（都帶 data-sao-helper）。
 //
@@ -68,6 +73,28 @@ export function getActionHeading() {
 
 export function getRewardHeading() {
 	return waitForLeafByExactText("樓層獎勵");
+}
+
+// ---------------- 挑戰卡片（/profile/ 頁面） ----------------
+
+/**
+ * 找出「挑戰」卡片的標題節點。
+ * 只掃標題類元素，避免抓到頁面上其他剛好也叫「挑戰」的文字（例如導覽列）。
+ */
+export function getChallengeHeading() {
+	for (const el of document.querySelectorAll("h1, h2, h3, h4, h5, h6")) {
+		if (el.children.length === 0 && el.textContent.trim() === CHALLENGE_HEADING) {
+			return el;
+		}
+	}
+	return null;
+}
+
+/** 四個挑戰模式的按鈕。 */
+export function getChallengeButtons() {
+	return getAllButtons().filter((b) =>
+		CHALLENGE_MODES.includes(b.textContent.trim()),
+	);
 }
 
 export function getRecordArticles() {

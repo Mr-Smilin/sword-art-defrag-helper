@@ -1,14 +1,14 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { resetActionIdMap } from "../src/action-api.js";
+import { resetActionIdMap } from "../../src/game/action-api.js";
 import {
 	getPendingClicks,
 	handleActionResult,
 	installActionTracker,
 	resetActionTracker,
-} from "../src/action-tracker.js";
-import { resetBus } from "../src/bus.js";
-import { getAwaiting, resetRecords } from "../src/records.js";
-import { reloadState, state } from "../src/state.js";
+} from "../../src/game/action-tracker.js";
+import { resetBus } from "../../src/core/bus.js";
+import { getLabels, resetRecords } from "../../src/features/records.js";
+import { reloadState, state } from "../../src/core/state.js";
 
 function clickAction(name) {
 	const btn = document.createElement("button");
@@ -51,7 +51,7 @@ describe("action-tracker - 點擊與 API 結果的配對", () => {
 		clickAction("自主訓練");
 		handleActionResult({ actionId: "self_training", success: true });
 
-		expect(getAwaiting()).toEqual(["自主訓練"]);
+		expect(getLabels()).toEqual(["自主訓練"]);
 		expect(getPendingClicks()).toEqual([]);
 	});
 
@@ -73,7 +73,7 @@ describe("action-tracker - 點擊與 API 結果的配對", () => {
 			error: "Action cooldown is active until ...",
 		});
 
-		expect(getAwaiting()).toEqual([]);
+		expect(getLabels()).toEqual([]);
 		expect(state.stepProgress).toBe(0);
 		expect(state.stepIndex).toBe(0);
 	});
@@ -127,29 +127,29 @@ describe("action-tracker - 點擊與 API 結果的配對", () => {
 
 		expect(state.stepIndex).toBe(0);
 		expect(state.stepProgress).toBe(0);
-		expect(getAwaiting()).toEqual(["釣魚"]); // 紀錄還是要正確標註
+		expect(getLabels()).toEqual(["釣魚"]); // 紀錄還是要正確標註
 	});
 
 	it("第一次遇到沒見過的 actionId，會用剛剛點的按鈕學起來", () => {
 		clickAction("釣魚");
 		handleActionResult({ actionId: "fishing", success: true });
-		expect(getAwaiting()).toEqual(["釣魚"]);
+		expect(getLabels()).toEqual(["釣魚"]);
 
 		// 學會之後，就算點擊佇列是空的（例如遊戲自己觸發）也認得出來
 		resetActionTracker();
 		resetRecords();
 		handleActionResult({ actionId: "fishing", success: true });
-		expect(getAwaiting()).toEqual(["釣魚"]);
+		expect(getLabels()).toEqual(["釣魚"]);
 	});
 
 	it("拿不到 actionId 時，退回用點擊順序配對", () => {
 		clickAction("做善事");
 		handleActionResult({ actionId: null, success: true });
-		expect(getAwaiting()).toEqual(["做善事"]);
+		expect(getLabels()).toEqual(["做善事"]);
 	});
 
 	it("成功但完全認不出行動時，仍然佔一格避免錯位", () => {
 		handleActionResult({ actionId: null, success: true });
-		expect(getAwaiting()).toEqual([null]);
+		expect(getLabels()).toEqual([null]);
 	});
 });

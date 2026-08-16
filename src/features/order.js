@@ -3,16 +3,16 @@
 // 這裡只負責「改狀態」，改完發 STATE_CHANGED 事件；重繪面板是 ui/order-panel.js 訂閱後自己做的。
 // 這樣可以避免 order.js 跟 ui/order-panel.js 互相 import 形成循環相依。
 
-import { STATE_CHANGED, emit } from "./bus.js";
-import { ACTION_NAMES } from "./constants.js";
-import { getActionButtonMap } from "./dom.js";
+import { STATE_CHANGED, emit } from "../core/bus.js";
+import { ACTION_NAMES } from "../core/constants.js";
+import { getActionButtonMap } from "../game/dom.js";
 import {
 	defaultSequence,
 	resetProgress,
 	save,
 	state,
 	currentStep,
-} from "./state.js";
+} from "../core/state.js";
 
 // 只剩一顆行動按鈕時，把它稍微放大一點，比較好點擊（不是縮小成一小格）。
 export const ENLARGED_BUTTON_STYLE = {

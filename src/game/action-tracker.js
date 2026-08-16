@@ -6,11 +6,11 @@
 //   —— 遊戲有行動冷卻、請求是序列化的，同一時間幾乎不可能有兩筆在途，所以這個配對可靠。
 //   萬一連 actionId 都拿不到（例如遊戲改用別的傳法），就退回單純用點擊順序配對。
 
-import { ACTION_RESULT, STATE_CHANGED, emit, on } from "./bus.js";
+import { ACTION_RESULT, STATE_CHANGED, emit, on } from "../core/bus.js";
 import { actionNameFromId, learnActionId } from "./action-api.js";
-import { ACTION_NAMES } from "./constants.js";
-import { queueLabel } from "./records.js";
-import { advanceStep, currentStep, save, state } from "./state.js";
+import { ACTION_NAMES } from "../core/constants.js";
+import { recordSuccess } from "../features/records.js";
+import { advanceStep, currentStep, save, state } from "../core/state.js";
 
 const pendingClicks = []; // 點過但還沒收到 API 回應的行動名稱（先進先出）
 const MAX_PENDING = 20;
@@ -41,9 +41,9 @@ export function handleActionResult({ actionId, success }) {
 	// 畫面不會多一筆紀錄，順序也必須停在原地等使用者重點一次。
 	if (!success) return;
 
-	// 成功一定會多一筆紀錄，先排隊等 DOM 更新。
-	// 就算 name 是 null 也要排，否則對照表會少佔一格而錯位。
-	queueLabel(name);
+	// 成功一定會多一筆紀錄，直接推進對照表。
+	// 就算 name 是 null 也要推，否則對照表會少佔一格，後面每一筆都跟著錯位。
+	recordSuccess(name);
 
 	if (state.orderMode && name) {
 		const step = currentStep();

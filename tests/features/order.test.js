@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { STATE_CHANGED, on, resetBus } from "../src/bus.js";
-import { ACTION_NAMES } from "../src/constants.js";
+import { STATE_CHANGED, on, resetBus } from "../../src/core/bus.js";
+import { ACTION_NAMES } from "../../src/core/constants.js";
 import {
 	addSeqItem,
 	applyOrderVisibility,
@@ -11,8 +11,8 @@ import {
 	setOrderMode,
 	setSeqItemCount,
 	setSeqItemName,
-} from "../src/order.js";
-import { defaultSequence, reloadState, state } from "../src/state.js";
+} from "../../src/features/order.js";
+import { defaultSequence, reloadState, state } from "../../src/core/state.js";
 
 function renderActionButtons() {
 	document.body.innerHTML = "<div id='row'></div>";

@@ -6,8 +6,8 @@ import {
 	learnActionId,
 	parseActionResponse,
 	resetActionIdMap,
-} from "../src/action-api.js";
-import { ACTION_ID_STORAGE_KEY } from "../src/constants.js";
+} from "../../src/game/action-api.js";
+import { ACTION_ID_STORAGE_KEY } from "../../src/core/constants.js";
 
 // 實測樣本（2026/08）
 const SUCCESS_BODY = JSON.stringify({

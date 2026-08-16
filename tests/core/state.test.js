@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { ACTION_NAMES, STORAGE_KEY } from "../src/constants.js";
+import { ACTION_NAMES, STORAGE_KEY } from "../../src/core/constants.js";
 import {
 	advanceStep,
 	currentStep,
@@ -10,7 +10,7 @@ import {
 	sanitizeSequence,
 	save,
 	state,
-} from "../src/state.js";
+} from "../../src/core/state.js";
 
 describe("state - sanitizeSequence", () => {
 	it("保留合法步驟", () => {

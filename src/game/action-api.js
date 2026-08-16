@@ -19,7 +19,7 @@
 //   2. 伺服器有行動冷卻（actionCooldown），代表行動是被序列化的，
 //      同一時間幾乎不可能有兩筆行動請求在途 —— 這讓「請求 <-> 按鈕」的配對非常可靠。
 
-import { ACTION_ID_STORAGE_KEY } from "./constants.js";
+import { ACTION_ID_STORAGE_KEY } from "../core/constants.js";
 
 export const ACTION_API_PATH = "/api/actions/";
 

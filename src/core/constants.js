@@ -13,6 +13,21 @@ export const ACTION_NAMES = [
 
 export const REWARD_NAME = "領取獎勵";
 
+// ---------------- 挑戰（/profile/ 頁面的挑戰卡片） ----------------
+
+export const CHALLENGE_HEADING = "挑戰";
+
+// 由安全到危險排列，順序同畫面上的呈現。
+export const CHALLENGE_MODES = [
+	"友好切磋",
+	"認真對決",
+	"決一死戰",
+	"我要殺死你",
+];
+
+// 開啟安全模式時，唯一會被保留下來的選項。
+export const SAFE_CHALLENGE_MODE = "友好切磋";
+
 // 行動記錄原始文字的開頭兩個字（「行動成功！獲得了 xx 點經驗值。」）。
 // 補行動名稱時就是把這兩個字換掉，後面的文字完全不動。
 export const RAW_RECORD_PREFIX = "行動";

@@ -1,16 +1,17 @@
 // ==UserScript==
 // @name         Sword Art 經典服輔助工具
-// @description  行動記錄 / 循環行動順序 / 樓層獎勵覆蓋
+// @description  行動記錄 / 循環行動順序 / 樓層獎勵覆蓋 / 挑戰安全模式
 // @namespace    sword-art-defrag-helper
-// @version      1.4.0
+// @version      1.5.0
 // @license      MIT
 // @author       smilin
 // @match        https://betawtf.swordartdefrag.page
+// @match        https://betawtf.swordartdefrag.page/profile/*
 // @grant        none
 // ==/UserScript==
 
 (() => {
-  // src/bus.js
+  // src/core/bus.js
   var handlers = /* @__PURE__ */ new Map();
   var STATE_CHANGED = "state-changed";
   var ACTION_RESULT = "action-result";
@@ -34,7 +35,7 @@
     }
   }
 
-  // src/constants.js
+  // src/core/constants.js
   var ACTION_NAMES = [
     "狩獵兔肉",
     "自主訓練",
@@ -45,11 +46,19 @@
     "釣魚"
   ];
   var REWARD_NAME = "領取獎勵";
+  var CHALLENGE_HEADING = "挑戰";
+  var CHALLENGE_MODES = [
+    "友好切磋",
+    "認真對決",
+    "決一死戰",
+    "我要殺死你"
+  ];
+  var SAFE_CHALLENGE_MODE = "友好切磋";
   var RAW_RECORD_PREFIX = "行動";
   var STORAGE_KEY = "saoDefragHelper_v3";
   var ACTION_ID_STORAGE_KEY = "saoDefragHelper_actionIds_v1";
 
-  // src/action-api.js
+  // src/game/action-api.js
   var ACTION_API_PATH = "/api/actions/";
   var SEED_ACTION_IDS = {
     self_training: "自主訓練"
@@ -144,7 +153,7 @@
     }
   }
 
-  // src/dom.js
+  // src/game/dom.js
   function getAllButtons() {
     return Array.from(document.querySelectorAll("button:not([data-sao-helper])"));
   }
@@ -188,6 +197,19 @@
   function getRewardHeading() {
     return waitForLeafByExactText("樓層獎勵");
   }
+  function getChallengeHeading() {
+    for (const el of document.querySelectorAll("h1, h2, h3, h4, h5, h6")) {
+      if (el.children.length === 0 && el.textContent.trim() === CHALLENGE_HEADING) {
+        return el;
+      }
+    }
+    return null;
+  }
+  function getChallengeButtons() {
+    return getAllButtons().filter(
+      (b) => CHALLENGE_MODES.includes(b.textContent.trim())
+    );
+  }
   function getRecordArticles() {
     return Array.from(document.querySelectorAll("article"));
   }
@@ -200,83 +222,41 @@
     return null;
   }
 
-  // src/records.js
+  // src/features/records.js
   var labels = [];
-  var awaiting = [];
-  var lastCount = 0;
-  var lastTopRaw = null;
-  var lastSignature = null;
-  var AWAITING_TIMEOUT_MS = 15e3;
-  var RECORD_SEPARATOR = "\0";
-  function queueLabel(name) {
-    awaiting.push({ name: name ?? null, at: Date.now() });
+  var applied = [];
+  var MAX_LABELS = 200;
+  function recordSuccess(name) {
+    labels.unshift(name ?? null);
+    if (labels.length > MAX_LABELS) labels.length = MAX_LABELS;
   }
-  function dropExpired() {
-    const now = Date.now();
-    while (awaiting.length && now - awaiting[0].at > AWAITING_TIMEOUT_MS) {
-      awaiting.shift();
-    }
-  }
-  function rawTextOf(article, labelName) {
-    if (!article) return null;
-    const node = findLeadingTextNode(article);
-    if (!node) return null;
-    const raw = node.nodeValue;
+  function annotate(raw, name) {
     const trimmed = raw.trimStart();
-    if (trimmed.startsWith(RAW_RECORD_PREFIX)) return raw;
-    if (labelName && trimmed.startsWith(labelName)) {
-      const lead = raw.length - trimmed.length;
-      return raw.slice(0, lead) + RAW_RECORD_PREFIX + raw.slice(lead + labelName.length);
-    }
-    return raw;
+    if (!trimmed.startsWith(RAW_RECORD_PREFIX)) return raw;
+    const lead = raw.length - trimmed.length;
+    return raw.slice(0, lead) + name + raw.slice(lead + RAW_RECORD_PREFIX.length);
   }
-  function detectShiftAmount(raws) {
-    if (lastTopRaw === null) return 0;
-    const max = Math.min(raws.length - 1, awaiting.length);
-    for (let k = max; k >= 1; k--) {
-      if (raws[k] === lastTopRaw) return k;
+  function rawBaseOf(index, current) {
+    if (current.trimStart().startsWith(RAW_RECORD_PREFIX)) return current;
+    if (applied[index] && applied[index].text === current) {
+      return applied[index].raw;
     }
-    return 0;
-  }
-  function applyLabels(articles) {
-    articles.forEach((article, i) => {
-      const name = labels[i];
-      if (!name) return;
-      const node = findLeadingTextNode(article);
-      if (!node) return;
-      const raw = node.nodeValue;
-      const trimmed = raw.trimStart();
-      if (!trimmed.startsWith(RAW_RECORD_PREFIX)) return;
-      const lead = raw.length - trimmed.length;
-      node.nodeValue = raw.slice(0, lead) + name + raw.slice(lead + RAW_RECORD_PREFIX.length);
-    });
+    return null;
   }
   function scanRecords() {
     const articles = getRecordArticles();
-    const n = articles.length;
-    if (!n) {
-      lastCount = 0;
-      lastTopRaw = null;
-      lastSignature = null;
-      return;
-    }
-    dropExpired();
-    const raws = articles.map((a, i) => rawTextOf(a, labels[i]));
-    const signature = raws.join(RECORD_SEPARATOR);
-    let newCount = 0;
-    if (n > lastCount) {
-      newCount = n - lastCount;
-    } else if (awaiting.length && signature !== lastSignature) {
-      newCount = detectShiftAmount(raws);
-    }
-    for (let k = 0; k < newCount; k++) {
-      labels.unshift(awaiting.length ? awaiting.shift().name : null);
-    }
-    labels.length = n;
-    applyLabels(articles);
-    lastCount = n;
-    lastTopRaw = raws[0];
-    lastSignature = signature;
+    articles.forEach((article, index) => {
+      const node = findLeadingTextNode(article);
+      if (!node) return;
+      const current = node.nodeValue;
+      const raw = rawBaseOf(index, current);
+      if (raw === null) return;
+      const name = labels[index];
+      const want = name ? annotate(raw, name) : raw;
+      if (current !== want) node.nodeValue = want;
+      applied[index] = { raw, text: want };
+    });
+    applied.length = articles.length;
   }
   function startRecordObserver(target = document.body) {
     const observer = new MutationObserver(() => scanRecords());
@@ -288,7 +268,7 @@
     return observer;
   }
 
-  // src/state.js
+  // src/core/state.js
   var defaultSequence = () => ACTION_NAMES.map((n) => ({ name: n, count: 1 }));
   var defaultState = () => ({
     orderMode: false,
@@ -299,8 +279,11 @@
     // 目前在序列的第幾步
     stepProgress: 0,
     // 目前這一步已經點了幾次
-    rewardOverlay: false
+    rewardOverlay: false,
     // 可領取時，覆蓋在行動按鈕上
+    // 挑戰只顯示「友好切磋」，其餘選項連同描述一起隱藏。
+    // 預設開啟：其他選項都有機率讓角色死亡，誤點的代價太大。
+    safeChallengeOnly: true
   });
   function sanitizeSequence(seq) {
     if (!Array.isArray(seq) || seq.length === 0) return null;
@@ -355,7 +338,7 @@
     return true;
   }
 
-  // src/action-tracker.js
+  // src/game/action-tracker.js
   var pendingClicks = [];
   var MAX_PENDING = 20;
   function handleClick(e) {
@@ -376,7 +359,7 @@
     }
     if (!name) name = clicked;
     if (!success) return;
-    queueLabel(name);
+    recordSuccess(name);
     if (state.orderMode && name) {
       const step = currentStep();
       if (step && name === step.name) {
@@ -395,7 +378,7 @@
     };
   }
 
-  // src/network.js
+  // src/game/network.js
   var installed = false;
   function report({ actionId, success, expGained = null, error = null }) {
     emit(ACTION_RESULT, { actionId: actionId ?? null, success, expGained, error });
@@ -508,14 +491,63 @@
     return true;
   }
 
-  // src/order.js
+  // src/features/challenge.js
+  var ENLARGED_CHALLENGE_BUTTON_STYLE = {
+    minHeight: "56px",
+    fontSize: "20px",
+    padding: "14px 24px"
+  };
+  function clearEnlargedButton(btn) {
+    btn.style.minHeight = "";
+    btn.style.fontSize = "";
+    btn.style.padding = "";
+  }
+  function getChallengeItems() {
+    const seen = /* @__PURE__ */ new Set();
+    const items = [];
+    for (const button of getChallengeButtons()) {
+      const article = button.closest("article");
+      if (!article || seen.has(article)) continue;
+      seen.add(article);
+      items.push({ article, button, name: button.textContent.trim() });
+    }
+    return items;
+  }
+  function applyChallengeFilter() {
+    const items = getChallengeItems();
+    if (!items.length) return false;
+    for (const { article, button, name } of items) {
+      if (!state.safeChallengeOnly) {
+        article.style.removeProperty("display");
+        article.style.removeProperty("grid-template-columns");
+        clearEnlargedButton(button);
+        continue;
+      }
+      if (name === SAFE_CHALLENGE_MODE) {
+        article.style.removeProperty("display");
+        article.style.gridTemplateColumns = "1fr";
+        Object.assign(button.style, ENLARGED_CHALLENGE_BUTTON_STYLE);
+      } else {
+        article.style.display = "none";
+        clearEnlargedButton(button);
+      }
+    }
+    return true;
+  }
+  function setSafeChallengeOnly(enabled) {
+    state.safeChallengeOnly = !!enabled;
+    save();
+    emit(STATE_CHANGED);
+  }
+
+  // src/features/order.js
   var ENLARGED_BUTTON_STYLE = {
     minWidth: "200px",
     minHeight: "60px",
     fontSize: "22px",
     padding: "16px 28px"
   };
-  function clearEnlargedButton(btn) {
+  function clearEnlargedButton2(btn) {
     btn.style.minWidth = "";
     btn.style.minHeight = "";
     btn.style.fontSize = "";
@@ -527,7 +559,7 @@
       ACTION_NAMES.forEach((n) => {
         if (!map[n]) return;
         map[n].style.removeProperty("display");
-        clearEnlargedButton(map[n]);
+        clearEnlargedButton2(map[n]);
       });
       return;
     }
@@ -541,7 +573,7 @@
         Object.assign(btn.style, ENLARGED_BUTTON_STYLE);
       } else {
         btn.style.display = "none";
-        clearEnlargedButton(btn);
+        clearEnlargedButton2(btn);
       }
     });
   }
@@ -597,7 +629,7 @@
     commit();
   }
 
-  // src/reward.js
+  // src/features/reward.js
   var overlayBtn = null;
   function ensureOverlayButton() {
     if (overlayBtn && document.body.contains(overlayBtn)) return overlayBtn;
@@ -654,36 +686,6 @@
     emit(STATE_CHANGED);
   }
 
-  // src/theme.js
-  function isDarkMode() {
-    return document.documentElement.classList.contains("dark");
-  }
-  var NEUTRAL_PALETTE = {
-    light: {
-      panelBg: "#f3f4f6",
-      panelText: "#111827",
-      panelBorder: "#d1d5db",
-      mutedText: "#4b5563"
-    },
-    dark: {
-      panelBg: "#27272a",
-      panelText: "#f4f4f5",
-      panelBorder: "#3f3f46",
-      mutedText: "#a1a1aa"
-    }
-  };
-  function neutralPalette() {
-    return isDarkMode() ? NEUTRAL_PALETTE.dark : NEUTRAL_PALETTE.light;
-  }
-  function observeTheme(onChange) {
-    const observer = new MutationObserver(onChange);
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ["class"]
-    });
-    return observer;
-  }
-
   // src/ui/components.js
   function smallBtn(text, onClick, variant) {
     const b = document.createElement("button");
@@ -726,6 +728,64 @@
     row.appendChild(cb);
     row.appendChild(span);
     return { row, cb };
+  }
+
+  // src/ui/challenge-toggle.js
+  var TOGGLE_MARK = "challenge-toggle";
+  function ensureChallengeToggle() {
+    const heading = getChallengeHeading();
+    const header = heading?.parentElement;
+    if (!header) return null;
+    const existing = header.querySelector(`[data-sao-helper="${TOGGLE_MARK}"]`);
+    if (existing) {
+      const checkbox = existing.querySelector("input");
+      if (checkbox) checkbox.checked = state.safeChallengeOnly;
+      return existing;
+    }
+    const { row } = checkboxRow(
+      "只顯示友好切磋",
+      state.safeChallengeOnly,
+      setSafeChallengeOnly
+    );
+    row.setAttribute("data-sao-helper", TOGGLE_MARK);
+    row.setAttribute("data-slot", "card-action");
+    Object.assign(row.style, {
+      justifySelf: "end",
+      alignSelf: "center",
+      whiteSpace: "nowrap"
+    });
+    header.appendChild(row);
+    return row;
+  }
+
+  // src/ui/theme.js
+  function isDarkMode() {
+    return document.documentElement.classList.contains("dark");
+  }
+  var NEUTRAL_PALETTE = {
+    light: {
+      panelBg: "#f3f4f6",
+      panelText: "#111827",
+      panelBorder: "#d1d5db",
+      mutedText: "#4b5563"
+    },
+    dark: {
+      panelBg: "#27272a",
+      panelText: "#f4f4f5",
+      panelBorder: "#3f3f46",
+      mutedText: "#a1a1aa"
+    }
+  };
+  function neutralPalette() {
+    return isDarkMode() ? NEUTRAL_PALETTE.dark : NEUTRAL_PALETTE.light;
+  }
+  function observeTheme(onChange) {
+    const observer = new MutationObserver(onChange);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class"]
+    });
+    return observer;
   }
 
   // src/ui/order-panel.js
@@ -905,8 +965,8 @@
         padding: "2px 4px"
       });
       countInput.addEventListener("change", () => {
-        const applied = setSeqItemCount(idx, countInput.value);
-        if (applied != null) countInput.value = String(applied);
+        const applied2 = setSeqItemCount(idx, countInput.value);
+        if (applied2 != null) countInput.value = String(applied2);
       });
       item.appendChild(countInput);
       const btnGroup = document.createElement("span");
@@ -979,6 +1039,8 @@
     applyOrderVisibility();
     applyRewardOverlay();
     scanRecords();
+    ensureChallengeToggle();
+    applyChallengeFilter();
   }
   function start() {
     installNetworkHooks();
@@ -987,6 +1049,7 @@
       applyOrderVisibility();
       applyRewardOverlay();
       renderOrderUI();
+      applyChallengeFilter();
     });
     scanRecords();
     startRecordObserver();
@@ -994,6 +1057,8 @@
     mountOrderEditor();
     applyOrderVisibility();
     applyRewardOverlay();
+    ensureChallengeToggle();
+    applyChallengeFilter();
     setInterval(reconcile, RECONCILE_INTERVAL_MS);
   }
   if (!alreadyInjected()) start();

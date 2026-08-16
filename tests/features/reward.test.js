@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { STATE_CHANGED, on, resetBus } from "../src/bus.js";
-import { ACTION_NAMES, REWARD_NAME } from "../src/constants.js";
+import { STATE_CHANGED, on, resetBus } from "../../src/core/bus.js";
+import { ACTION_NAMES, REWARD_NAME } from "../../src/core/constants.js";
 import {
 	applyRewardOverlay,
 	resetRewardOverlay,
 	setRewardOverlay,
-} from "../src/reward.js";
-import { reloadState, state } from "../src/state.js";
+} from "../../src/features/reward.js";
+import { reloadState, state } from "../../src/core/state.js";
 
 function setupPage({ rewardDisabled = false } = {}) {
 	document.body.innerHTML = "<div id='row'></div><div id='floor'></div>";

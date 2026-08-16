@@ -8,7 +8,7 @@
 //
 // fetch 和 XMLHttpRequest 都攔，是因為不確定遊戲前端用哪一種，兩邊都補上最保險。
 
-import { ACTION_RESULT, emit } from "./bus.js";
+import { ACTION_RESULT, emit } from "../core/bus.js";
 import {
 	extractActionId,
 	isActionRequest,

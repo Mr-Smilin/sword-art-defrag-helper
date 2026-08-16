@@ -14,6 +14,9 @@ export const defaultState = () => ({
 	stepIndex: 0, // 目前在序列的第幾步
 	stepProgress: 0, // 目前這一步已經點了幾次
 	rewardOverlay: false, // 可領取時，覆蓋在行動按鈕上
+	// 挑戰只顯示「友好切磋」，其餘選項連同描述一起隱藏。
+	// 預設開啟：其他選項都有機率讓角色死亡，誤點的代價太大。
+	safeChallengeOnly: true,
 });
 
 export function sanitizeSequence(seq) {
